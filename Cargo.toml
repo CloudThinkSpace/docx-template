@@ -3,11 +3,12 @@ name = "docx-template"
 version = "0.1.1"
 authors = ["tanghy <tanghy@cloudthink.space>"]
 homepage = "https://www.cloudthink.space"
-publish = false
+publish = true
 edition = "2024"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/CloudThinkSpace/docx-template"
 rust-version = "1.85.0"
+description = "This is a tool for replacing docx file templates."
 
 [dependencies]
 quick-xml = "0.37.5"
