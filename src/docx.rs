@@ -63,6 +63,35 @@ impl DocxTemplate {
 
         Ok(())
     }
+    /// 添加要替换的图片
+    /// @param placeholder 替换的字符串
+    /// @param image_path 图片路径
+    /// @param width 图片的宽度(厘米)
+    /// @param height 图片的高度(厘米)
+    pub fn add_image_size_replacement(
+        &mut self,
+        placeholder: &str,
+        image_path: Option<&str>,
+        width: f32,
+        height: f32,
+    ) -> Result<(), DocxError> {
+        match image_path {
+            None => {
+                // 插入图片到属性中
+                self.image_replacements
+                    .insert(placeholder.to_string(), None);
+            }
+            Some(file_path) => {
+                // 插入图片到属性中
+                self.image_replacements.insert(
+                    placeholder.to_string(),
+                    Some(DocxImage::new_size(file_path, width, height)?),
+                );
+            }
+        }
+
+        Ok(())
+    }
 
     /// 添加要替换的图片
     /// @param placeholder 替换的字符串
@@ -89,6 +118,45 @@ impl DocxTemplate {
                     self.image_replacements.insert(
                         placeholder.to_string(),
                         Some(DocxImage::new_image_data(url, image_data)?),
+                    );
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// 添加要替换的图片
+    /// @param placeholder 替换的字符串
+    /// @param image_path 图片路径
+    /// @param width 图片的宽度(厘米)
+    /// @param height 图片的高度(厘米)
+    pub async fn add_image_size_url_replacement(
+        &mut self,
+        placeholder: &str,
+        image_url: Option<&str>,
+        width: f32,
+        height: f32,
+    ) -> Result<(), DocxError> {
+        match image_url {
+            None => {
+                // 插入图片到属性中
+                self.image_replacements
+                    .insert(placeholder.to_string(), None);
+            }
+            Some(url) => {
+                // 发送请求
+                let response = self.client.get(url).send().await?;
+                // 检查状态码
+                if response.status().is_success() {
+                    // 读取字节
+                    let image_data = response.bytes().await?.to_vec();
+                    // 插入图片到属性中
+                    self.image_replacements.insert(
+                        placeholder.to_string(),
+                        Some(DocxImage::new_image_data_size(
+                            url, image_data, width, height,
+                        )?),
                     );
                 }
             }
