@@ -1,0 +1,11 @@
+[package]
+name = "docx-template"
+version = "0.1.1"
+edition = "2024"
+
+[dependencies]
+quick-xml = "0.37.5"
+zip = "4.0.0"
+thiserror = "2.0.12"
+uuid = { version = "1.17.0", features = ["v4"] }
+reqwest = "0.12.18"
