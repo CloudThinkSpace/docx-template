@@ -13,8 +13,8 @@ docx_template.add_text_replacement("{{city}}", "2023-11-25");
 docx_template.add_text_replacement("{{town}}", "¥10,000");
 docx_template.add_text_replacement("{{county}}", "30天内付清");
 
-docx_template.add_image_url_replacement("{{photo1}}", Some("http://49.232.145.33/api/image/nx/2025/5/23/4/27/4da6f0c9-2610-4574-8f0a-638f9f5eb1d7.png")).await?;
-docx_template.add_image_url_replacement("{{photo2}}", Some("http://49.232.145.33/api/image/nx/2025/5/23/4/27/5d3c83de-99e1-4081-a4ee-ba4925d1d3a5.png")).await?;
+docx_template.add_image_url_replacement("{{photo1}}", Some("http://xxxxx/4da6f0c9-2610-4574-8f0a-638f9f5eb1d7.png")).await?;
+docx_template.add_image_url_replacement("{{photo2}}", Some("http://xxxxx/5d3c83de-99e1-4081-a4ee-ba4925d1d3a5.png")).await?;
 docx_template.add_image_replacement("{{photo3}}", None).expect("添加图片失败");
 docx_template.add_image_replacement("{{photo4}}", None).expect("添加图片失败");
 ```
