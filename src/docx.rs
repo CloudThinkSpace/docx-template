@@ -242,6 +242,7 @@ impl DocxTemplate {
         // xml_writer.write_event(Event::Decl(BytesDecl::new("1.0", Some("UTF-8"), Some("yes"))))?;
         // 读取xml文件的内容
         let mut reader = quick_xml::Reader::from_reader(&contents[..]);
+        reader.config_mut().trim_text(true);
         // 缓存数组
         let mut buf = Vec::new();
         // 图片对应的字符串占位符
@@ -326,6 +327,7 @@ impl DocxTemplate {
 
         // 读取原始数据
         let mut reader = quick_xml::Reader::from_reader(xml_data);
+        reader.config_mut().trim_text(true);
         let mut buf = Vec::new();
 
         loop {
