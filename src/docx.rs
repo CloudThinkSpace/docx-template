@@ -161,7 +161,7 @@ impl DocxTemplate {
     }
 
     fn process_element(&self, element: &mut BytesStart) -> Result<(), DocxError> {
-        println!("{:?}", String::from_utf8_lossy(element.name().as_ref()));
+        // println!("{:?}", String::from_utf8_lossy(element.name().as_ref()));
         Ok(())
     }
 
