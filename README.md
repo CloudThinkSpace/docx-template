@@ -16,9 +16,10 @@ docx_template.add_text_replacement("{{county}}", "30天内付清");
 // 添加在线图片，大小默认6.09*5.9
 docx_template.add_image_url_replacement("{{photo1}}", Some("http://xxxxx/4da6f0c9-2610-4574-8f0a-638f9f5eb1d7.png")).await?;
 // 大小为厘米，根据文档实际需求设置大小
-docx_template.add_image_size_url_replacement("{{photo2}}", Some("http://xxxxx/5d3c83de-99e1-4081-a4ee-ba4925d1d3a5.png"),5.0,5.0).await?;
+docx_template.add_image_url_size_replacement("{{photo2}}", Some("http://xxxxx/5d3c83de-99e1-4081-a4ee-ba4925d1d3a5.png"),5.0,5.0).await?;
+添加本地图片
+docx_template.add_image_file_replacement("{{photo3}}", "./data/image.png").expect("添加图片失败");
 // 替换图片占位符为空
-docx_template.add_image_replacement("{{photo3}}", None).expect("添加图片失败");
-docx_template.add_image_replacement("{{photo4}}", None).expect("添加图片失败");
+docx_template.add_image_file_replacement("{{photo4}}", None).expect("添加图片失败");
 ```
 其中替换图片可以替换本地土和在线图片

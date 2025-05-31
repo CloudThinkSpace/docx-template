@@ -4,10 +4,9 @@ use std::fs::File;
 use std::io::Read;
 use uuid::Uuid;
 
-static IMAGE_WIDTH: f32 = 6.09;
-static IMAGE_HEIGHT: f32 = 5.9;
 // 1厘米约等于360000EMU
 pub static DOCX_EMU: f32 = 360000.0;
+pub static DOCX_MAX_EMU: u64 = (21.0 * 360000.0) as u64;
 // 1英寸=96像素
 static DPI: f64 = 96f64;
 // 1英寸=914400 EMU
@@ -93,9 +92,16 @@ impl DocxImage {
 }
 
 fn get_image_size(image_data: &[u8]) -> Result<(u64, u64), DocxError> {
-    let img = load_from_memory(&image_data)?;
+    let img = load_from_memory(image_data)?;
     let (width_px, height_px) = img.dimensions();
-    let width_emu = (width_px as f64 * EMU / &DPI) as u64;
-    let height_emu = (height_px as f64 * EMU / &DPI) as u64;
-    Ok((width_emu, height_emu))
+    let mut width_emu = (width_px as f64 * EMU / DPI) as u64;
+    let mut height_emu = (height_px as f64 * EMU / DPI) as u64;
+    // 判断图片是否大于文档宽度
+    if width_emu > DOCX_MAX_EMU {
+        width_emu = DOCX_MAX_EMU;
+        height_emu = DOCX_MAX_EMU * height_emu / width_emu;
+        Ok((width_emu, height_emu))
+    } else {
+        Ok((width_emu, height_emu))
+    }
 }

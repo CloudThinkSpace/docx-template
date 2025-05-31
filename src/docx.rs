@@ -218,17 +218,15 @@ impl DocxTemplate {
         }
 
         // 4. 添加新的图片文件
-        for (_, replacement) in &self.image_replacements {
-            if let Some(replacement) = replacement {
-                let image_path = format!(
-                    "word/media/image_{}.{}",
-                    replacement.relation_id,
-                    DocxTemplate::get_extension(&replacement.image_path)?
-                );
-                // 写入图片到word压缩文件中
-                zip_writer.start_file(&image_path, SimpleFileOptions::default())?;
-                zip_writer.write_all(&replacement.image_data)?;
-            }
+        for replacement in self.image_replacements.values().flatten() {
+            let image_path = format!(
+                "word/media/image_{}.{}",
+                replacement.relation_id,
+                DocxTemplate::get_extension(&replacement.image_path)?
+            );
+            // 写入图片到word压缩文件中
+            zip_writer.start_file(&image_path, SimpleFileOptions::default())?;
+            zip_writer.write_all(&replacement.image_data)?;
         }
         // 将内容写入压缩文件（docx）
         zip_writer.finish()?;
@@ -248,7 +246,7 @@ impl DocxTemplate {
         // 写入xml文件头
         // xml_writer.write_event(Event::Decl(BytesDecl::new("1.0", Some("UTF-8"), Some("yes"))))?;
         // 读取xml文件的内容
-        let mut reader = quick_xml::Reader::from_reader(&contents[..]);
+        let mut reader = quick_xml::Reader::from_reader(contents);
         reader.config_mut().trim_text(true);
         // 缓存数组
         let mut buf = Vec::new();
@@ -354,24 +352,22 @@ impl DocxTemplate {
         }
 
         // 添加新的图片关系
-        for (_, value) in &self.image_replacements {
-            if let Some(docx_image) = value {
-                // 获取图片扩展名
-                let extension = DocxTemplate::get_extension(&docx_image.image_path)?;
-                // 创建图片路径
-                let image_path = format!("media/image_{}.{}", docx_image.relation_id, extension);
-                // 创建图片关系标签
-                let relationship = BytesStart::new("Relationship").with_attributes([
-                    ("Id", docx_image.relation_id.as_str()),
-                    (
-                        "Type",
-                        "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image",
-                    ),
-                    ("Target", &image_path),
-                ]);
-                // 写入关系标签数据
-                writer.write_event(Event::Empty(relationship))?;
-            }
+        for docx_image in self.image_replacements.values().flatten() {
+            // 获取图片扩展名
+            let extension = DocxTemplate::get_extension(&docx_image.image_path)?;
+            // 创建图片路径
+            let image_path = format!("media/image_{}.{}", docx_image.relation_id, extension);
+            // 创建图片关系标签
+            let relationship = BytesStart::new("Relationship").with_attributes([
+                ("Id", docx_image.relation_id.as_str()),
+                (
+                    "Type",
+                    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image",
+                ),
+                ("Target", &image_path),
+            ]);
+            // 写入关系标签数据
+            writer.write_event(Event::Empty(relationship))?;
         }
 
         // 结束根元素
@@ -457,5 +453,11 @@ impl DocxTemplate {
             }
         }
         Ok(())
+    }
+}
+
+impl Default for DocxTemplate {
+    fn default() -> Self {
+        Self::new()
     }
 }
