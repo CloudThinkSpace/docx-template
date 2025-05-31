@@ -1,3 +1,5 @@
+use crate::error::DocxError;
+use crate::image::{DOCX_EMU, DocxImage};
 use quick_xml::Writer;
 use quick_xml::events::{BytesDecl, BytesEnd, BytesStart, BytesText, Event};
 use reqwest::Client;
@@ -6,8 +8,6 @@ use std::fs::File;
 use std::io::{Cursor, Read, Write};
 use std::path::Path;
 use std::time::Duration;
-use thiserror::Error;
-use uuid::Uuid;
 use zip::write::SimpleFileOptions;
 use zip::{ZipArchive, ZipWriter};
 
@@ -32,18 +32,18 @@ impl DocxTemplate {
         }
     }
 
-    /// 添加待替换的字符以及对应的值
-    /// @param placeholder 替换的字符串
-    /// @param value 替换的值
+    /// 添加待替换的字符以及对应的值  
+    /// @param placeholder 待替换的字符串  
+    /// @param value 替换的值  
     pub fn add_text_replacement(&mut self, placeholder: &str, value: &str) {
         self.text_replacements
             .insert(placeholder.to_string(), value.to_string());
     }
 
-    /// 添加要替换的图片
-    /// @param placeholder 替换的字符串
-    /// @param image_path 图片路径
-    pub fn add_image_replacement(
+    /// 添加待替换的图片  
+    /// @param placeholder 待替换的字符串  
+    /// @param image_path 图片路径  
+    pub fn add_image_file_replacement(
         &mut self,
         placeholder: &str,
         image_path: Option<&str>,
@@ -63,12 +63,13 @@ impl DocxTemplate {
 
         Ok(())
     }
-    /// 添加要替换的图片
-    /// @param placeholder 替换的字符串
-    /// @param image_path 图片路径
-    /// @param width 图片的宽度(厘米)
-    /// @param height 图片的高度(厘米)
-    pub fn add_image_size_replacement(
+
+    /// 添加待替换的图片  
+    /// @param placeholder 替换的字符串  
+    /// @param image_path 图片路径  
+    /// @param width 图片的宽度(厘米)  
+    /// @param height 图片的高度(厘米)  
+    pub fn add_image_file_size_replacement(
         &mut self,
         placeholder: &str,
         image_path: Option<&str>,
@@ -82,10 +83,13 @@ impl DocxTemplate {
                     .insert(placeholder.to_string(), None);
             }
             Some(file_path) => {
+                // 将厘米单位换算成emu
+                let width_emu = (width * DOCX_EMU) as u64;
+                let height_emu = (height * DOCX_EMU) as u64;
                 // 插入图片到属性中
                 self.image_replacements.insert(
                     placeholder.to_string(),
-                    Some(DocxImage::new_size(file_path, width, height)?),
+                    Some(DocxImage::new_size(file_path, width_emu, height_emu)?),
                 );
             }
         }
@@ -93,9 +97,9 @@ impl DocxTemplate {
         Ok(())
     }
 
-    /// 添加要替换的图片
-    /// @param placeholder 替换的字符串
-    /// @param image_path 图片路径
+    /// 添加待替换的图片，替换的图片大小默认6.09*5.9厘米  
+    /// @param placeholder 替换的字符串  
+    /// @param image_url 图片路径  
     pub async fn add_image_url_replacement(
         &mut self,
         placeholder: &str,
@@ -126,12 +130,12 @@ impl DocxTemplate {
         Ok(())
     }
 
-    /// 添加要替换的图片
-    /// @param placeholder 替换的字符串
-    /// @param image_path 图片路径
-    /// @param width 图片的宽度(厘米)
-    /// @param height 图片的高度(厘米)
-    pub async fn add_image_size_url_replacement(
+    /// 添加待替换的图片  
+    /// @param placeholder 替换的字符串  
+    /// @param image_url 图片路径  
+    /// @param width 图片的宽度(厘米)  
+    /// @param height 图片的高度(厘米)  
+    pub async fn add_image_url_size_replacement(
         &mut self,
         placeholder: &str,
         image_url: Option<&str>,
@@ -151,11 +155,14 @@ impl DocxTemplate {
                 if response.status().is_success() {
                     // 读取字节
                     let image_data = response.bytes().await?.to_vec();
+                    // 将厘米单位换算成emu
+                    let width_emu = (width * DOCX_EMU) as u64;
+                    let height_emu = (height * DOCX_EMU) as u64;
                     // 插入图片到属性中
                     self.image_replacements.insert(
                         placeholder.to_string(),
                         Some(DocxImage::new_image_data_size(
-                            url, image_data, width, height,
+                            url, image_data, width_emu, height_emu,
                         )?),
                     );
                 }
@@ -165,9 +172,9 @@ impl DocxTemplate {
         Ok(())
     }
 
-    /// 处理模板
-    /// @param template_path 模板路径
-    /// @param output_path 输出路径
+    /// 处理模板  
+    /// @param template_path 模板路径  
+    /// @param output_path 输出路径  
     pub fn process_template(
         &self,
         template_path: &str,
@@ -233,8 +240,8 @@ impl DocxTemplate {
         Ok(())
     }
 
-    /// 处理文件内容
-    /// @param contents 文件内容数组
+    /// 处理文件内容  
+    /// @param contents 文件内容数组  
     fn process_document_xml(&self, contents: &[u8]) -> Result<Vec<u8>, DocxError> {
         // 创建xml写对象
         let mut xml_writer = Writer::new(Cursor::new(Vec::new()));
@@ -451,80 +458,4 @@ impl DocxTemplate {
         }
         Ok(())
     }
-}
-
-// 添加的图标对象
-struct DocxImage {
-    // 图片路径
-    pub image_path: String,
-    // 图片数据
-    pub image_data: Vec<u8>,
-    // 关联id
-    pub relation_id: String,
-    // 图片高度
-    pub width: u64,
-    // 图片高度
-    pub height: u64,
-}
-
-impl DocxImage {
-    /// 创建图片对象
-    /// @param image_path 图片路径
-    pub fn new(image_path: &str) -> Result<Self, DocxError> {
-        Self::new_size(image_path, 6.09, 5.9)
-    }
-    /// 设置图片大小
-    /// @param image_path 图片路径
-    /// @param width 图片宽度
-    /// @param height 图片高度
-    pub fn new_size(image_path: &str, width: f32, height: f32) -> Result<Self, DocxError> {
-        // 打开文件读取数据到数组中
-        let mut file = File::open(image_path)?;
-        let mut image_data = Vec::new();
-        file.read_to_end(&mut image_data)?;
-        DocxImage::new_image_data_size(image_path, image_data, width, height)
-    }
-
-    /// 设置图片大小
-    /// @param image_url 图片路径
-    /// @param image_data 图片数据
-    pub fn new_image_data(image_url: &str, image_data: Vec<u8>) -> Result<Self, DocxError> {
-        DocxImage::new_image_data_size(image_url, image_data, 6.09, 5.9)
-    }
-
-    /// 设置图片大小
-    /// @param image_url 图片路径
-    /// @param image_data 图片数据
-    /// @param width 图片宽度
-    /// @param height 图片高度
-    pub fn new_image_data_size(
-        image_url: &str,
-        image_data: Vec<u8>,
-        width: f32,
-        height: f32,
-    ) -> Result<Self, DocxError> {
-        Ok(DocxImage {
-            image_path: image_url.to_string(),
-            relation_id: format!("rId{}", Uuid::new_v4().simple()),
-            width: (width * 360000.0) as u64,
-            height: (height * 360000.0) as u64,
-            image_data,
-        })
-    }
-}
-
-#[derive(Error, Debug)]
-pub enum DocxError {
-    #[error("IO error: {0}")]
-    Io(#[from] std::io::Error),
-    #[error("Zip error: {0}")]
-    Zip(#[from] zip::result::ZipError),
-    #[error("XML error: {0}")]
-    Xml(#[from] quick_xml::Error),
-    #[error("UTF-8 error: {0}")]
-    Utf8(#[from] std::string::FromUtf8Error),
-    #[error("Image not found: {0}")]
-    ImageNotFound(String),
-    #[error("Image url not found: {0}")]
-    ImageUrlFound(#[from] reqwest::Error),
 }
