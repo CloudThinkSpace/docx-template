@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 // 1厘米约等于360000EMU
 pub static DOCX_EMU: f32 = 360000.0;
-pub static DOCX_MAX_EMU: u64 = (21.0 * 360000.0) as u64;
+pub static DOCX_MAX_EMU: u64 = (21.0 * 360000.0 / 2.0) as u64;
 // 1英寸=96像素
 static DPI: f64 = 96f64;
 // 1英寸=914400 EMU
@@ -98,8 +98,8 @@ fn get_image_size(image_data: &[u8]) -> Result<(u64, u64), DocxError> {
     let mut height_emu = (height_px as f64 * EMU / DPI) as u64;
     // 判断图片是否大于文档宽度
     if width_emu > DOCX_MAX_EMU {
-        width_emu = DOCX_MAX_EMU;
         height_emu = DOCX_MAX_EMU * height_emu / width_emu;
+        width_emu = DOCX_MAX_EMU;
         Ok((width_emu, height_emu))
     } else {
         Ok((width_emu, height_emu))
