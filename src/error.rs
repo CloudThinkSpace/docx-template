@@ -16,4 +16,6 @@ pub enum DocxError {
     InvalidImageUrl(#[from] reqwest::Error),
     #[error("read image size error: {0}")]
     ReadImageSize(#[from] image::ImageError),
+    #[error("Not image content type error: {0}")]
+    NotImage(String),
 }

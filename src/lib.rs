@@ -1,6 +1,7 @@
 pub mod docx;
 pub mod error;
 pub mod image;
+pub mod request;
 
 #[cfg(test)]
 mod tests {
@@ -18,8 +19,8 @@ mod tests {
         docx_template.add_text_replacement("{{town}}", "¥10,000");
         docx_template.add_text_replacement("{{county}}", "30天内付清");
 
-        docx_template.add_image_url_replacement("{{photo1}}", Some("http://xxxx.png")).await.expect("msg");
-        docx_template.add_image_url_size_replacement("{{photo2}}", Some("http://xxxx.png"),5.0,5.0).await.expect("msg");
+        docx_template.add_image_url_replacement("{{photo1}}", Some("http://gips3.baidu.com/it/u=100751361,1567855012&fm=3028&app=3028&f=JPEG&fmt=auto?w=960&h=1280")).await.expect("msg");
+        docx_template.add_image_url_size_replacement("{{photo2}}", Some("http://gips3.baidu.com/it/u=100751361,1567855012&fm=3028&app=3028&f=JPEG&fmt=auto?w=960&h=1280"),5.0,5.0).await.expect("msg");
         docx_template
             .add_image_file_replacement("{{photo3}}", Some("./data/bgImg.png"))
             .expect("添加本地图片失败");

@@ -1,15 +1,18 @@
 use crate::error::DocxError;
 use crate::image::{DOCX_EMU, DocxImage};
+use crate::request::request_image_data;
 use quick_xml::Writer;
 use quick_xml::events::{BytesDecl, BytesEnd, BytesStart, BytesText, Event};
 use reqwest::Client;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{Cursor, Read, Write};
-use std::path::Path;
 use std::time::Duration;
 use zip::write::SimpleFileOptions;
 use zip::{ZipArchive, ZipWriter};
+
+static PREFIX_TAG: &str = "{{";
+static SUFFIX_TAG: &str = "}}";
 
 pub struct DocxTemplate {
     // 待替换的字符串
@@ -113,17 +116,12 @@ impl DocxTemplate {
             }
             Some(url) => {
                 // 发送请求
-                let response = self.client.get(url).send().await?;
-                // 检查状态码
-                if response.status().is_success() {
-                    // 读取字节
-                    let image_data = response.bytes().await?.to_vec();
-                    // 插入图片到属性中
-                    self.image_replacements.insert(
-                        placeholder.to_string(),
-                        Some(DocxImage::new_image_data(url, image_data)?),
-                    );
-                }
+                let (image_data, image_ext) = request_image_data(&self.client, url).await?;
+                // 插入图片到属性中
+                self.image_replacements.insert(
+                    placeholder.to_string(),
+                    Some(DocxImage::new_image_data(url, image_data, &image_ext)?),
+                );
             }
         }
 
@@ -150,22 +148,17 @@ impl DocxTemplate {
             }
             Some(url) => {
                 // 发送请求
-                let response = self.client.get(url).send().await?;
-                // 检查状态码
-                if response.status().is_success() {
-                    // 读取字节
-                    let image_data = response.bytes().await?.to_vec();
-                    // 将厘米单位换算成emu
-                    let width_emu = (width * DOCX_EMU) as u64;
-                    let height_emu = (height * DOCX_EMU) as u64;
-                    // 插入图片到属性中
-                    self.image_replacements.insert(
-                        placeholder.to_string(),
-                        Some(DocxImage::new_image_data_size(
-                            url, image_data, width_emu, height_emu,
-                        )?),
-                    );
-                }
+                let (image_data, image_ext) = request_image_data(&self.client, url).await?;
+                // 将厘米单位换算成emu
+                let width_emu = (width * DOCX_EMU) as u64;
+                let height_emu = (height * DOCX_EMU) as u64;
+                // 插入图片到属性中
+                self.image_replacements.insert(
+                    placeholder.to_string(),
+                    Some(DocxImage::new_image_data_size(
+                        url, image_data, &image_ext, width_emu, height_emu,
+                    )?),
+                );
             }
         }
 
@@ -221,8 +214,7 @@ impl DocxTemplate {
         for replacement in self.image_replacements.values().flatten() {
             let image_path = format!(
                 "word/media/image_{}.{}",
-                replacement.relation_id,
-                DocxTemplate::get_extension(&replacement.image_path)?
+                replacement.relation_id, replacement.image_ext,
             );
             // 写入图片到word压缩文件中
             zip_writer.start_file(&image_path, SimpleFileOptions::default())?;
@@ -244,8 +236,6 @@ impl DocxTemplate {
     fn process_document_xml(&self, contents: &[u8]) -> Result<Vec<u8>, DocxError> {
         // 创建xml写对象
         let mut xml_writer = Writer::new(Cursor::new(Vec::new()));
-        // 写入xml文件头
-        // xml_writer.write_event(Event::Decl(BytesDecl::new("1.0", Some("UTF-8"), Some("yes"))))?;
         // 读取xml文件的内容
         let mut reader = quick_xml::Reader::from_reader(contents);
         reader.config_mut().trim_text(true);
@@ -269,9 +259,9 @@ impl DocxTemplate {
                     // 读取标签的内容
                     let mut text = e.unescape()?.into_owned();
                     // 判断是否有替换字符串开头内容"{{"
-                    if text.starts_with("{{") {
+                    if text.starts_with(PREFIX_TAG) {
                         // 判断是否包含结束字符串}}
-                        if text.ends_with("}}") {
+                        if text.ends_with(SUFFIX_TAG) {
                             // 1、替换文本占位符操作
                             self.process_text(&mut text);
                             // 2、替换图片占位符操作
@@ -294,8 +284,8 @@ impl DocxTemplate {
                             // 将字符串写入
                             current_placeholder.push_str(text.as_str());
                             // 判断是否有结束字符串}}
-                            if current_placeholder.ends_with("}}")
-                                && current_placeholder.starts_with("{{")
+                            if current_placeholder.ends_with(PREFIX_TAG)
+                                && current_placeholder.starts_with(SUFFIX_TAG)
                             {
                                 // 1、替换文本占位符操作
                                 self.process_text(&mut current_placeholder);
@@ -315,7 +305,9 @@ impl DocxTemplate {
                     // 判断是否为空，为空，直接添加结尾标签
                     if current_placeholder.is_empty() {
                         xml_writer.write_event(Event::End(e))?;
-                    }else if current_placeholder.starts_with("{{") && current_placeholder.ends_with("}}"){
+                    } else if current_placeholder.starts_with(PREFIX_TAG)
+                        && current_placeholder.ends_with(SUFFIX_TAG)
+                    {
                         // 判断是否为段落
                         if e.name().as_ref() == b"w:p" {
                             // 判断是否为完整替换字符串
@@ -336,7 +328,6 @@ impl DocxTemplate {
                         // 写入结尾标签
                         xml_writer.write_event(Event::End(e))?;
                     }
-
                 }
                 Event::Eof => break,
                 Event::Empty(e) => {
@@ -344,10 +335,10 @@ impl DocxTemplate {
                     if current_placeholder.is_empty() {
                         xml_writer.write_event(Event::Empty(e))?;
                     }
-                },
+                }
                 e => {
                     xml_writer.write_event(e)?;
-                },
+                }
             }
             buf.clear();
         }
@@ -396,10 +387,11 @@ impl DocxTemplate {
 
         // 添加新的图片关系
         for docx_image in self.image_replacements.values().flatten() {
-            // 获取图片扩展名
-            let extension = DocxTemplate::get_extension(&docx_image.image_path)?;
             // 创建图片路径
-            let image_path = format!("media/image_{}.{}", docx_image.relation_id, extension);
+            let image_path = format!(
+                "media/image_{}.{}",
+                docx_image.relation_id, docx_image.image_ext
+            );
             // 创建图片关系标签
             let relationship = BytesStart::new("Relationship").with_attributes([
                 ("Id", docx_image.relation_id.as_str()),
@@ -419,14 +411,6 @@ impl DocxTemplate {
         Ok(writer.into_inner().into_inner())
     }
 
-    fn get_extension(image_path: &str) -> Result<&str, DocxError> {
-        Path::new(image_path)
-            .extension()
-            .and_then(|s| s.to_str())
-            .ok_or_else(|| {
-                DocxError::ImageNotFound("Could not determine image extension".to_string())
-            })
-    }
     // 替换模板属性
     fn process_text(&self, text: &mut String) {
         for (placeholder, value) in &self.text_replacements {
