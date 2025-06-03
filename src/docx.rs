@@ -32,17 +32,17 @@ impl DocxTemplate {
         }
     }
 
-    /// 添加待替换的字符以及对应的值  
-    /// @param placeholder 待替换的字符串  
-    /// @param value 替换的值  
+    /// 添加待替换的字符以及对应的值
+    /// @param placeholder 待替换的字符串
+    /// @param value 替换的值
     pub fn add_text_replacement(&mut self, placeholder: &str, value: &str) {
         self.text_replacements
             .insert(placeholder.to_string(), value.to_string());
     }
 
-    /// 添加待替换的图片  
-    /// @param placeholder 待替换的字符串  
-    /// @param image_path 图片路径  
+    /// 添加待替换的图片
+    /// @param placeholder 待替换的字符串
+    /// @param image_path 图片路径
     pub fn add_image_file_replacement(
         &mut self,
         placeholder: &str,
@@ -64,11 +64,11 @@ impl DocxTemplate {
         Ok(())
     }
 
-    /// 添加待替换的图片  
-    /// @param placeholder 替换的字符串  
-    /// @param image_path 图片路径  
-    /// @param width 图片的宽度(厘米)  
-    /// @param height 图片的高度(厘米)  
+    /// 添加待替换的图片
+    /// @param placeholder 替换的字符串
+    /// @param image_path 图片路径
+    /// @param width 图片的宽度(厘米)
+    /// @param height 图片的高度(厘米)
     pub fn add_image_file_size_replacement(
         &mut self,
         placeholder: &str,
@@ -97,9 +97,9 @@ impl DocxTemplate {
         Ok(())
     }
 
-    /// 添加待替换的图片，替换的图片大小默认6.09*5.9厘米  
-    /// @param placeholder 替换的字符串  
-    /// @param image_url 图片路径  
+    /// 添加待替换的图片，替换的图片大小默认6.09*5.9厘米
+    /// @param placeholder 替换的字符串
+    /// @param image_url 图片路径
     pub async fn add_image_url_replacement(
         &mut self,
         placeholder: &str,
@@ -130,11 +130,11 @@ impl DocxTemplate {
         Ok(())
     }
 
-    /// 添加待替换的图片  
-    /// @param placeholder 替换的字符串  
-    /// @param image_url 图片路径  
-    /// @param width 图片的宽度(厘米)  
-    /// @param height 图片的高度(厘米)  
+    /// 添加待替换的图片
+    /// @param placeholder 替换的字符串
+    /// @param image_url 图片路径
+    /// @param width 图片的宽度(厘米)
+    /// @param height 图片的高度(厘米)
     pub async fn add_image_url_size_replacement(
         &mut self,
         placeholder: &str,
@@ -172,9 +172,9 @@ impl DocxTemplate {
         Ok(())
     }
 
-    /// 处理模板  
-    /// @param template_path 模板路径  
-    /// @param output_path 输出路径  
+    /// 处理模板
+    /// @param template_path 模板路径
+    /// @param output_path 输出路径
     pub fn process_template(
         &self,
         template_path: &str,
@@ -234,12 +234,13 @@ impl DocxTemplate {
     }
 
     fn process_element(&self, _element: &mut BytesStart) -> Result<(), DocxError> {
-        // println!("{:?}", String::from_utf8_lossy(element.name().as_ref()));
+        // let aa = String::from_utf8_lossy(_element.name().as_ref()).to_string();
+        // println!("{:?}",aa );
         Ok(())
     }
 
-    /// 处理文件内容  
-    /// @param contents 文件内容数组  
+    /// 处理文件内容
+    /// @param contents 文件内容数组
     fn process_document_xml(&self, contents: &[u8]) -> Result<Vec<u8>, DocxError> {
         // 创建xml写对象
         let mut xml_writer = Writer::new(Cursor::new(Vec::new()));
@@ -259,52 +260,94 @@ impl DocxTemplate {
                 Event::Start(e) => {
                     let mut element = e.to_owned();
                     self.process_element(&mut element)?;
-                    if e.name().as_ref() == b"w:p" {
-                        current_placeholder.clear();
+                    // 如果为空，写入标签头
+                    if current_placeholder.is_empty() {
+                        xml_writer.write_event(Event::Start(element))?;
                     }
-                    xml_writer.write_event(Event::Start(element))?;
                 }
                 Event::Text(e) => {
                     // 读取标签的内容
                     let mut text = e.unescape()?.into_owned();
-                    // 替换文本占位符操作
-                    self.process_text(&mut text);
-                    // 判断图片占位符是否包含在内容
-                    if self.image_replacements.contains_key(&text) {
-                        current_placeholder.push_str(&text);
+                    // 判断是否有替换字符串开头内容"{{"
+                    if text.starts_with("{{") {
+                        // 判断是否包含结束字符串}}
+                        if text.ends_with("}}") {
+                            // 1、替换文本占位符操作
+                            self.process_text(&mut text);
+                            // 2、替换图片占位符操作
+                            if self.image_replacements.contains_key(&text) {
+                                current_placeholder.push_str(&text);
+                            } else {
+                                xml_writer
+                                    .write_event(Event::Text(BytesText::new(text.as_str())))?;
+                            }
+                        } else {
+                            // 将字符串保存
+                            current_placeholder.push_str(&text);
+                        }
                     } else {
-                        xml_writer.write_event(Event::Text(BytesText::new(text.as_str())))?;
+                        // 判断current_placeholder字符串是否有内容
+                        if current_placeholder.is_empty() {
+                            // 将原有字符串写入文档
+                            xml_writer.write_event(Event::Text(BytesText::new(text.as_str())))?;
+                        } else {
+                            // 将字符串写入
+                            current_placeholder.push_str(text.as_str());
+                            // 判断是否有结束字符串}}
+                            if current_placeholder.ends_with("}}")
+                                && current_placeholder.starts_with("{{")
+                            {
+                                // 1、替换文本占位符操作
+                                self.process_text(&mut current_placeholder);
+                                // 2、如果不包含写入数据
+                                if !self.image_replacements.contains_key(&current_placeholder) {
+                                    xml_writer.write_event(Event::Text(BytesText::new(
+                                        current_placeholder.as_str(),
+                                    )))?;
+                                    // 清理数据
+                                    current_placeholder.clear();
+                                }
+                            }
+                        }
                     }
                 }
                 Event::End(e) => {
-                    // 判断标签是w:p，并且判断当前待替换的图片字符串是否为空
-                    if e.name().as_ref() == b"w:p" && !current_placeholder.is_empty() {
-                        if let Some(Some(docx_image)) =
-                            self.image_replacements.get(&current_placeholder)
-                        {
-                            // 替换占位符为图片
-                            DocxTemplate::create_drawing_element(
-                                &mut xml_writer,
-                                &docx_image.relation_id,
-                                docx_image.width,
-                                docx_image.height,
-                            )?;
-                        } else {
-                            // 保留原始占位符文本
-                            xml_writer.write_event(Event::Text(BytesText::from_escaped(
-                                // current_placeholder.as_str(),
-                                "",
-                            )))?;
+                    // 判断是否为空，为空，直接添加结尾标签
+                    if current_placeholder.is_empty() {
+                        xml_writer.write_event(Event::End(e))?;
+                    }else if current_placeholder.starts_with("{{") && current_placeholder.ends_with("}}"){
+                        // 判断是否为段落
+                        if e.name().as_ref() == b"w:p" {
+                            // 判断是否为完整替换字符串
+                            if let Some(Some(docx_image)) =
+                                self.image_replacements.get(&current_placeholder)
+                            {
+                                // 替换占位符为图片
+                                DocxTemplate::create_drawing_element(
+                                    &mut xml_writer,
+                                    &docx_image.relation_id,
+                                    docx_image.width,
+                                    docx_image.height,
+                                )?;
+                            }
+                            // 清除字符串
+                            current_placeholder.clear();
                         }
-                        current_placeholder.clear();
+                        // 写入结尾标签
+                        xml_writer.write_event(Event::End(e))?;
                     }
-                    xml_writer.write_event(Event::End(e))?;
+
                 }
                 Event::Eof => break,
+                Event::Empty(e) => {
+                    // 如果为空写入文档
+                    if current_placeholder.is_empty() {
+                        xml_writer.write_event(Event::Empty(e))?;
+                    }
+                },
                 e => {
-                    // 写入原有信息
-                    xml_writer.write_event(e)?
-                }
+                    xml_writer.write_event(e)?;
+                },
             }
             buf.clear();
         }

@@ -1,6 +1,6 @@
 [package]
 name = "docx-template"
-version = "0.1.7"
+version = "0.1.8"
 authors = ["tanghy <tanghy@cloudthink.space>"]
 homepage = "https://www.cloudthink.space"
 publish = true
@@ -17,3 +17,6 @@ thiserror = "2.0.12"
 uuid = { version = "1.17.0", features = ["v4"] }
 reqwest = "0.12.18"
 image = "0.25.6"
+
+[dev-dependencies]
+tokio = { version = "1.45.1", features = ["full"] }
