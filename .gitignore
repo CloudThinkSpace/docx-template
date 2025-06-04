@@ -1,5 +1,5 @@
 /target
-/.idea/*.*
+/.idea/*
 Cargo.lock
 /data
 *.docx
