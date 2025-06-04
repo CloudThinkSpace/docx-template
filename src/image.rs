@@ -14,6 +14,7 @@ static DPI: f64 = 96f64;
 static EMU: f64 = 914400f64;
 
 // 添加的图标对象
+#[derive(Debug, Clone)]
 pub struct DocxImage {
     // 图片路径
     pub image_path: String,
@@ -73,8 +74,8 @@ impl DocxImage {
     /// @param image_url 图片路径  
     /// @param image_data 图片数据  
     /// @param image_ext 图片扩展名  
-    /// @param width 图片宽度（emu） 
-    /// @param height 图片高度（emu） 
+    /// @param width 图片宽度（emu）
+    /// @param height 图片高度（emu）
     pub fn new_image_data_size(
         image_url: &str,
         image_data: Vec<u8>,
@@ -90,6 +91,46 @@ impl DocxImage {
             height,
             image_data,
         })
+    }
+
+    /// 设置图片大小  
+    /// @param image_url 图片路径  
+    /// @param image_data 图片数据  
+    /// @param image_ext 图片扩展名  
+    /// @param relation_id 关联编号
+    /// @param width 图片宽度（emu）
+    /// @param height 图片高度（emu）
+    pub fn new_image_data_size_relation(
+        image_url: &str,
+        image_data: Vec<u8>,
+        image_ext: &str,
+        relation_id: &str,
+        width: u64,
+        height: u64,
+    ) -> Self {
+        DocxImage {
+            image_path: image_url.to_string(),
+            image_ext: image_ext.to_string(),
+            relation_id: relation_id.to_string(),
+            width,
+            height,
+            image_data,
+        }
+    }
+
+    /// 克隆一个图片对象，并重新设置图片大小
+    /// @param docx_image 图片对象  
+    /// @param width 图片宽度（emu）
+    /// @param height 图片高度（emu）
+    pub fn clone_image_reset_size(docx_image: &DocxImage, width: u64, height: u64) -> Self {
+        DocxImage {
+            image_path: docx_image.image_path.clone(),
+            image_ext: docx_image.image_ext.clone(),
+            relation_id: docx_image.relation_id.clone(),
+            width,
+            height,
+            image_data: docx_image.image_data.clone(),
+        }
     }
 }
 

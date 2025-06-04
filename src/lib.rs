@@ -2,8 +2,6 @@ pub mod docx;
 pub mod error;
 pub mod image;
 pub mod request;
-mod docx1;
-
 #[cfg(test)]
 mod tests {
     use crate::docx::DocxTemplate;
@@ -26,11 +24,13 @@ mod tests {
             .add_image_file_replacement("{{photo3}}", Some("./data/bgImg.png"))
             .expect("添加本地图片失败");
         docx_template
-            .add_image_file_replacement("{{photo4}}", Some("./data/bgImg.png"))
+            .add_image_file_size_replacement("{{photo4}}", Some("./data/bgImg.png"), 5.0, 5.0)
             .expect("添加图片失败");
 
         // 3. 处理模板并生成新文档
-        docx_template.process_template("./data/西藏自治区严格管控核查表单.docx", "output.docx").expect("");
+        docx_template
+            .process_template("./data/西藏自治区严格管控核查表单.docx", "output.docx")
+            .expect("");
 
         println!("文档生成成功!");
     }

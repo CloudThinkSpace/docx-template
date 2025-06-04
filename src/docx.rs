@@ -26,6 +26,8 @@ pub struct DocxTemplate {
     text_replacements: HashMap<String, String>,
     // 待替换的图片
     image_replacements: HashMap<String, Option<DocxImage>>,
+    // 已经添加的图片路径
+    images_map: HashMap<String, String>,
     // 请求对象
     client: Client,
 }
@@ -35,6 +37,7 @@ impl DocxTemplate {
         DocxTemplate {
             text_replacements: HashMap::new(),
             image_replacements: HashMap::new(),
+            images_map: HashMap::new(),
             client: Client::builder()
                 .timeout(Duration::from_secs(10)) // 设置超时
                 .build()
@@ -64,10 +67,22 @@ impl DocxTemplate {
                 self.image_replacements
                     .insert(placeholder.to_string(), None);
             }
-            Some(data) => {
-                // 插入图片到属性中
-                self.image_replacements
-                    .insert(placeholder.to_string(), Some(DocxImage::new(data)?));
+            Some(file_path) => {
+                // 判断是否添加过该图片
+                if self.images_map.contains_key(file_path) {
+                    let old_placeholder = &self.images_map[file_path];
+                    let image_option = &self.image_replacements[old_placeholder];
+                    // 插入图片到属性中
+                    self.image_replacements
+                        .insert(placeholder.to_string(), image_option.clone());
+                } else {
+                    // 收集添加的图片路径
+                    self.images_map
+                        .insert(file_path.to_string(), placeholder.to_string());
+                    // 插入图片到属性中
+                    self.image_replacements
+                        .insert(placeholder.to_string(), Some(DocxImage::new(file_path)?));
+                }
             }
         }
 
@@ -96,11 +111,28 @@ impl DocxTemplate {
                 // 将厘米单位换算成emu
                 let width_emu = (width * DOCX_EMU) as u64;
                 let height_emu = (height * DOCX_EMU) as u64;
-                // 插入图片到属性中
-                self.image_replacements.insert(
-                    placeholder.to_string(),
-                    Some(DocxImage::new_size(file_path, width_emu, height_emu)?),
-                );
+                // 判断是否添加过该图片
+                if self.images_map.contains_key(file_path) {
+                    let old_placeholder = &self.images_map[file_path];
+                    let image_option = &self.image_replacements[old_placeholder];
+
+                    if let Some(image) = image_option {
+                        let docx_image =
+                            DocxImage::clone_image_reset_size(image, width_emu, height_emu);
+                        // 插入图片到属性中
+                        self.image_replacements
+                            .insert(placeholder.to_string(), Some(docx_image));
+                    }
+                } else {
+                    // 收集添加的图片路径
+                    self.images_map
+                        .insert(file_path.to_string(), placeholder.to_string());
+                    // 插入图片到属性中
+                    self.image_replacements.insert(
+                        placeholder.to_string(),
+                        Some(DocxImage::new_size(file_path, width_emu, height_emu)?),
+                    );
+                }
             }
         }
 
@@ -122,13 +154,25 @@ impl DocxTemplate {
                     .insert(placeholder.to_string(), None);
             }
             Some(url) => {
-                // 发送请求
-                let (image_data, image_ext) = request_image_data(&self.client, url).await?;
-                // 插入图片到属性中
-                self.image_replacements.insert(
-                    placeholder.to_string(),
-                    Some(DocxImage::new_image_data(url, image_data, &image_ext)?),
-                );
+                // 判断是否添加过该图片
+                if self.images_map.contains_key(url) {
+                    let old_placeholder = &self.images_map[url];
+                    let image_option = &self.image_replacements[old_placeholder];
+                    // 插入图片到属性中
+                    self.image_replacements
+                        .insert(placeholder.to_string(), image_option.clone());
+                } else {
+                    // 收集添加的图片路径
+                    self.images_map
+                        .insert(url.to_string(), placeholder.to_string());
+                    // 发送请求
+                    let (image_data, image_ext) = request_image_data(&self.client, url).await?;
+                    // 插入图片到属性中
+                    self.image_replacements.insert(
+                        placeholder.to_string(),
+                        Some(DocxImage::new_image_data(url, image_data, &image_ext)?),
+                    );
+                }
             }
         }
 
@@ -154,18 +198,33 @@ impl DocxTemplate {
                     .insert(placeholder.to_string(), None);
             }
             Some(url) => {
-                // 发送请求
-                let (image_data, image_ext) = request_image_data(&self.client, url).await?;
                 // 将厘米单位换算成emu
                 let width_emu = (width * DOCX_EMU) as u64;
                 let height_emu = (height * DOCX_EMU) as u64;
-                // 插入图片到属性中
-                self.image_replacements.insert(
-                    placeholder.to_string(),
-                    Some(DocxImage::new_image_data_size(
-                        url, image_data, &image_ext, width_emu, height_emu,
-                    )?),
-                );
+                // 判断是否添加过该图片
+                if self.images_map.contains_key(url) {
+                    let old_placeholder = &self.images_map[url];
+                    let image_option = &self.image_replacements[old_placeholder];
+                    if let Some(image) = image_option {
+                        let docx_image =
+                            DocxImage::clone_image_reset_size(image, width_emu, height_emu);
+                        // 插入图片到属性中
+                        self.image_replacements
+                            .insert(placeholder.to_string(), Some(docx_image));
+                    }
+                } else {
+                    self.images_map
+                        .insert(url.to_string(), placeholder.to_string());
+                    // 发送请求
+                    let (image_data, image_ext) = request_image_data(&self.client, url).await?;
+                    // 插入图片到属性中
+                    self.image_replacements.insert(
+                        placeholder.to_string(),
+                        Some(DocxImage::new_image_data_size(
+                            url, image_data, &image_ext, width_emu, height_emu,
+                        )?),
+                    );
+                }
             }
         }
 
@@ -212,8 +271,10 @@ impl DocxTemplate {
         }
 
         // 4. 添加新的图片文件
-        for replacement in self.image_replacements.values().flatten() {
-            self.writer_image(&mut zip_writer, replacement)?;
+        for replacement in self.images_map.values() {
+            if let Some(Some(replacement)) = self.image_replacements.get(replacement) {
+                self.writer_image(&mut zip_writer, replacement)?;
+            }
         }
         // 将内容写入压缩文件（docx）
         zip_writer.finish()?;
@@ -416,23 +477,25 @@ impl DocxTemplate {
         }
 
         // 添加新的图片关系
-        for docx_image in self.image_replacements.values().flatten() {
-            // 创建图片路径
-            let image_path = format!(
-                "media/image_{}.{}",
-                docx_image.relation_id, docx_image.image_ext
-            );
-            // 创建图片关系标签
-            let relationship = BytesStart::new("Relationship").with_attributes([
-                ("Id", docx_image.relation_id.as_str()),
-                (
-                    "Type",
-                    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image",
-                ),
-                ("Target", &image_path),
-            ]);
-            // 写入关系标签数据
-            writer.write_event(Event::Empty(relationship))?;
+        for placeholder in self.images_map.values() {
+            if let Some(Some(docx_image)) = self.image_replacements.get(placeholder) {
+                // 创建图片路径
+                let image_path = format!(
+                    "media/image_{}.{}",
+                    docx_image.relation_id, docx_image.image_ext
+                );
+                // 创建图片关系标签
+                let relationship = BytesStart::new("Relationship").with_attributes([
+                    ("Id", docx_image.relation_id.as_str()),
+                    (
+                        "Type",
+                        "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image",
+                    ),
+                    ("Target", &image_path),
+                ]);
+                // 写入关系标签数据
+                writer.write_event(Event::Empty(relationship))?;
+            }
         }
 
         // 结束根元素

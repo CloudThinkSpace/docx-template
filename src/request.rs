@@ -28,6 +28,6 @@ pub async fn request_image_data(
     }
     // 读取字节
     let image_data = response.bytes().await?.to_vec();
-    let extension = &content_type[7..];
+    let extension = &content_type[6..];
     Ok((image_data, extension.to_string()))
 }

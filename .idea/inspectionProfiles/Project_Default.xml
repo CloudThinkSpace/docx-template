@@ -8,6 +8,7 @@
           <option value="http://127.0.0.1" />
           <option value="http://activemq.apache.org/schema/" />
           <option value="http://cxf.apache.org/schemas/" />
+          <option value="http://gips3.baidu.com" />
           <option value="http://java.sun.com/" />
           <option value="http://javafx.com/fxml" />
           <option value="http://javafx.com/javafx/" />
