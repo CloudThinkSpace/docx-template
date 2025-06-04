@@ -2,6 +2,7 @@ pub mod docx;
 pub mod error;
 pub mod image;
 pub mod request;
+mod docx1;
 
 #[cfg(test)]
 mod tests {

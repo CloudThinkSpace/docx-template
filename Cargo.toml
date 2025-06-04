@@ -17,6 +17,7 @@ thiserror = "2.0.12"
 uuid = { version = "1.17.0", features = ["v4"] }
 reqwest = "0.12.18"
 image = "0.25.6"
+log = "0.4.27"
 
 [dev-dependencies]
 tokio = { version = "1.45.1", features = ["full"] }

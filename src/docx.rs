@@ -1,6 +1,9 @@
+use crate::docx::template::create_drawing_element;
+use crate::docx::word::*;
 use crate::error::DocxError;
 use crate::image::{DOCX_EMU, DocxImage};
 use crate::request::request_image_data;
+use log::debug;
 use quick_xml::Writer;
 use quick_xml::events::{BytesDecl, BytesEnd, BytesStart, BytesText, Event};
 use reqwest::Client;
@@ -8,8 +11,12 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io::{Cursor, Read, Write};
 use std::time::Duration;
+use zip::read::ZipFile;
 use zip::write::SimpleFileOptions;
 use zip::{ZipArchive, ZipWriter};
+
+mod template;
+mod word;
 
 static PREFIX_TAG: &str = "{{";
 static SUFFIX_TAG: &str = "}}";
@@ -190,44 +197,67 @@ impl DocxTemplate {
             file.read_to_end(&mut contents)?;
             // 匹配文件类型
             match file.name() {
-                "word/document.xml" => {
+                x if x == WORD_DOCUMENT => {
                     // 处理文档主内容,替换模板内容
                     contents = self.process_document_xml(&contents)?;
                 }
-                "word/_rels/document.xml.rels" => {
+                x if x == WORD_RELS_DOCUMENT => {
                     // 处理关系文件
                     contents = self.process_rels_xml(&contents)?;
                 }
                 &_ => {}
             }
-
             // 写入新文件
-            let option = SimpleFileOptions::default()
-                .compression_method(file.compression())
-                .unix_permissions(file.unix_mode().unwrap_or(0o644));
-            // 写入内容
-            zip_writer.start_file(file.name(), option)?;
-            zip_writer.write_all(&contents)?;
+            self.writer_file(&mut zip_writer, &file, &contents)?
         }
 
         // 4. 添加新的图片文件
         for replacement in self.image_replacements.values().flatten() {
-            let image_path = format!(
-                "word/media/image_{}.{}",
-                replacement.relation_id, replacement.image_ext,
-            );
-            // 写入图片到word压缩文件中
-            zip_writer.start_file(&image_path, SimpleFileOptions::default())?;
-            zip_writer.write_all(&replacement.image_data)?;
+            self.writer_image(&mut zip_writer, replacement)?;
         }
         // 将内容写入压缩文件（docx）
         zip_writer.finish()?;
         Ok(())
     }
 
+    /// 写入图片  
+    /// @param zip_writer 写入对象  
+    /// @param replacement 图片对象  
+    fn writer_image(
+        &self,
+        zip_writer: &mut ZipWriter<File>,
+        replacement: &DocxImage,
+    ) -> Result<(), DocxError> {
+        let image_path = format!(
+            "{}{}.{}",
+            WORD_MEDIA_IMAGE, replacement.relation_id, replacement.image_ext,
+        );
+        // 写入图片到word压缩文件中
+        zip_writer.start_file(&image_path, SimpleFileOptions::default())?;
+        zip_writer.write_all(&replacement.image_data)?;
+        Ok(())
+    }
+
+    fn writer_file(
+        &self,
+        zip_writer: &mut ZipWriter<File>,
+        file: &ZipFile<File>,
+        contents: &[u8],
+    ) -> Result<(), DocxError> {
+        // 写入新文件
+        let option = SimpleFileOptions::default()
+            .compression_method(file.compression())
+            .unix_permissions(file.unix_mode().unwrap_or(0o644));
+        // 写入内容
+        zip_writer.start_file(file.name(), option)?;
+        zip_writer.write_all(contents)?;
+
+        Ok(())
+    }
+
     fn process_element(&self, _element: &mut BytesStart) -> Result<(), DocxError> {
-        // let aa = String::from_utf8_lossy(_element.name().as_ref()).to_string();
-        // println!("{:?}",aa );
+        let tag = String::from_utf8_lossy(_element.name().as_ref()).to_string();
+        debug!("{:?}", tag);
         Ok(())
     }
 
@@ -259,9 +289,9 @@ impl DocxTemplate {
                     // 读取标签的内容
                     let mut text = e.unescape()?.into_owned();
                     // 判断是否有替换字符串开头内容"{{"
-                    if text.starts_with(PREFIX_TAG) {
+                    if text.contains(PREFIX_TAG) {
                         // 判断是否包含结束字符串}}
-                        if text.ends_with(SUFFIX_TAG) {
+                        if text.contains(SUFFIX_TAG) {
                             // 1、替换文本占位符操作
                             self.process_text(&mut text);
                             // 2、替换图片占位符操作
@@ -284,8 +314,8 @@ impl DocxTemplate {
                             // 将字符串写入
                             current_placeholder.push_str(text.as_str());
                             // 判断是否有结束字符串}}
-                            if current_placeholder.ends_with(PREFIX_TAG)
-                                && current_placeholder.starts_with(SUFFIX_TAG)
+                            if current_placeholder.contains(PREFIX_TAG)
+                                && current_placeholder.contains(SUFFIX_TAG)
                             {
                                 // 1、替换文本占位符操作
                                 self.process_text(&mut current_placeholder);
@@ -305,17 +335,17 @@ impl DocxTemplate {
                     // 判断是否为空，为空，直接添加结尾标签
                     if current_placeholder.is_empty() {
                         xml_writer.write_event(Event::End(e))?;
-                    } else if current_placeholder.starts_with(PREFIX_TAG)
-                        && current_placeholder.ends_with(SUFFIX_TAG)
+                    } else if current_placeholder.contains(PREFIX_TAG)
+                        && current_placeholder.contains(SUFFIX_TAG)
                     {
                         // 判断是否为段落
-                        if e.name().as_ref() == b"w:p" {
+                        if e.name().as_ref() == WORD_PARAGRAPH_TAG {
                             // 判断是否为完整替换字符串
                             if let Some(Some(docx_image)) =
                                 self.image_replacements.get(&current_placeholder)
                             {
                                 // 替换占位符为图片
-                                DocxTemplate::create_drawing_element(
+                                create_drawing_element(
                                     &mut xml_writer,
                                     &docx_image.relation_id,
                                     docx_image.width,
@@ -416,70 +446,6 @@ impl DocxTemplate {
         for (placeholder, value) in &self.text_replacements {
             *text = text.replace(placeholder, value);
         }
-    }
-
-    fn create_drawing_element<T>(
-        writer: &mut Writer<T>,
-        relation_id: &str,
-        width: u64,
-        height: u64,
-    ) -> Result<(), DocxError>
-    where
-        T: Write,
-    {
-        let drawing = format!(
-            r#"
-        <w:drawing>
-            <wp:inline distT="0" distB="0" distL="0" distR="0">
-                <wp:extent cx="{}" cy="{}"/>
-                <wp:docPr id="1" name="Picture 1" descr="Generated image"/>
-                <wp:cNvGraphicFramePr>
-                    <a:graphicFrameLocks xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" noChangeAspect="1"/>
-                </wp:cNvGraphicFramePr>
-                <a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
-                    <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">
-                        <pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
-                            <pic:nvPicPr>
-                                <pic:cNvPr id="0" name="Picture 1" descr="Generated image"/>
-                                <pic:cNvPicPr><a:picLocks noChangeAspect="1"/></pic:cNvPicPr>
-                            </pic:nvPicPr>
-                            <pic:blipFill>
-                                <a:blip r:embed="{}"/>
-                                <a:stretch>
-                                    <a:fillRect/>
-                                </a:stretch>
-                            </pic:blipFill>
-                            <pic:spPr>
-                                <a:xfrm>
-                                    <a:off x="0" y="0"/>
-                                    <a:ext cx="{}" cy="{}"/>
-                                </a:xfrm>
-                                <a:prstGeom prst="rect">
-                                    <a:avLst/>
-                                </a:prstGeom>
-                            </pic:spPr>
-                        </pic:pic>
-                    </a:graphicData>
-                </a:graphic>
-            </wp:inline>
-        </w:drawing>
-    "#,
-            width, height, relation_id, width, height,
-        );
-
-        let mut reader = quick_xml::Reader::from_str(&drawing);
-        reader.config_mut().trim_text(true);
-        let mut buf = Vec::new();
-
-        loop {
-            match reader.read_event_into(&mut buf)? {
-                Event::Eof => break,
-                e => {
-                    writer.write_event(e)?;
-                }
-            }
-        }
-        Ok(())
     }
 }
 

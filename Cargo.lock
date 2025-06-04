@@ -381,6 +381,7 @@ name = "docx-template"
 version = "0.1.9"
 dependencies = [
  "image",
+ "log",
  "quick-xml",
  "reqwest",
  "thiserror 2.0.12",
