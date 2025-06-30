@@ -329,7 +329,7 @@ impl DocxTemplate {
         let mut xml_writer = Writer::new(Cursor::new(Vec::new()));
         // 读取xml文件的内容
         let mut reader = quick_xml::Reader::from_reader(contents);
-        reader.config_mut().trim_text(true);
+        // reader.config_mut().trim_text(true);
         // 缓存数组
         let mut buf = Vec::new();
         // 图片对应的字符串占位符

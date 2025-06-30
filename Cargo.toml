@@ -1,6 +1,6 @@
 [package]
 name = "docx-template"
-version = "0.2.2"
+version = "0.2.1"
 authors = ["tanghy <tanghy@cloudthink.space>"]
 homepage = "https://www.cloudthink.space"
 publish = true
