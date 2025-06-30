@@ -1,5 +1,6 @@
 use crate::error::DocxError;
 use reqwest::Client;
+use crate::image::get_extension;
 
 /// 获取图片数据   
 /// @param client 请求客户端  
@@ -18,13 +19,13 @@ pub async fn request_image_data(
     // 获取请求头
     let headers = response.headers().clone();
     // 先读取头信息
-    let content_type = headers
+    let mut content_type = headers
         .get(reqwest::header::CONTENT_TYPE)
-        .map(|h| h.to_str().unwrap_or(""))
-        .unwrap_or("");
+        .map(|h| h.to_str().unwrap_or("").to_string())
+        .unwrap_or("".to_string());
     // 获取内容类型以验证是否为图片
     if !content_type.starts_with("image/") {
-        return Err(DocxError::NotImage(content_type.to_string()));
+        content_type = get_extension(url)?.to_string();
     }
     // 读取字节
     let image_data = response.bytes().await?.to_vec();

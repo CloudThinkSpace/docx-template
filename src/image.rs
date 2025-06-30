@@ -134,7 +134,7 @@ impl DocxImage {
     }
 }
 
-fn get_image_size(image_data: &[u8]) -> Result<(u64, u64), DocxError> {
+pub fn get_image_size(image_data: &[u8]) -> Result<(u64, u64), DocxError> {
     let img = load_from_memory(image_data)?;
     let (width_px, height_px) = img.dimensions();
     let mut width_emu = (width_px as f64 * EMU / DPI) as u64;
@@ -152,7 +152,7 @@ fn get_image_size(image_data: &[u8]) -> Result<(u64, u64), DocxError> {
 /// 获取本地图片的扩展名
 /// @param image_path 本地图片路径
 /// @return 图片扩展名
-fn get_extension(image_path: &str) -> Result<&str, DocxError> {
+pub fn get_extension(image_path: &str) -> Result<&str, DocxError> {
     Path::new(image_path)
         .extension()
         .and_then(|s| s.to_str())
