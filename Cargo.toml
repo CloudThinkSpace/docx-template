@@ -1,6 +1,6 @@
 [package]
 name = "docx-template"
-version = "0.2.4"
+version = "0.2.5"
 authors = ["tanghy <tanghy@cloudthink.space>"]
 homepage = "https://www.cloudthink.space"
 publish = true
@@ -11,7 +11,7 @@ rust-version = "1.85.0"
 description = "This is a tool for replacing docx file templates."
 
 [dependencies]
-quick-xml = "0.37.5"
+quick-xml = "0.38.0"
 zip = "4.0.0"
 thiserror = "2.0.12"
 uuid = { version = "1.17.0", features = ["v4"] }
