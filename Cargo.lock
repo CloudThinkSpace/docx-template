@@ -378,7 +378,7 @@ dependencies = [
 
 [[package]]
 name = "docx-template"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "image",
  "log",
