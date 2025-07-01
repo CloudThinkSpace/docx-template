@@ -267,52 +267,17 @@ impl DocxTemplate {
                 &_ => {}
             }
             // 写入新文件
-            self.writer_file(&mut zip_writer, &file, &contents)?
+            writer_file(&mut zip_writer, &file, &contents)?
         }
 
         // 4. 添加新的图片文件
         for replacement in self.images_map.values() {
             if let Some(Some(replacement)) = self.image_replacements.get(replacement) {
-                self.writer_image(&mut zip_writer, replacement)?;
+                writer_image(&mut zip_writer, replacement)?;
             }
         }
         // 将内容写入压缩文件（docx）
         zip_writer.finish()?;
-        Ok(())
-    }
-
-    /// 写入图片  
-    /// @param zip_writer 写入对象  
-    /// @param replacement 图片对象  
-    fn writer_image(
-        &self,
-        zip_writer: &mut ZipWriter<File>,
-        replacement: &DocxImage,
-    ) -> Result<(), DocxError> {
-        let image_path = format!(
-            "{}{}.{}",
-            WORD_MEDIA_IMAGE, replacement.relation_id, replacement.image_ext,
-        );
-        // 写入图片到word压缩文件中
-        zip_writer.start_file(&image_path, SimpleFileOptions::default())?;
-        zip_writer.write_all(&replacement.image_data)?;
-        Ok(())
-    }
-
-    fn writer_file(
-        &self,
-        zip_writer: &mut ZipWriter<File>,
-        file: &ZipFile<File>,
-        contents: &[u8],
-    ) -> Result<(), DocxError> {
-        // 写入新文件
-        let option = SimpleFileOptions::default()
-            .compression_method(file.compression())
-            .unix_permissions(file.unix_mode().unwrap_or(0o644));
-        // 写入内容
-        zip_writer.start_file(file.name(), option)?;
-        zip_writer.write_all(contents)?;
-
         Ok(())
     }
 
@@ -516,4 +481,37 @@ impl Default for DocxTemplate {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// 写入图片  
+/// @param zip_writer 写入对象  
+/// @param replacement 图片对象  
+fn writer_image(
+    zip_writer: &mut ZipWriter<File>,
+    replacement: &DocxImage,
+) -> Result<(), DocxError> {
+    let image_path = format!(
+        "{}{}.{}",
+        WORD_MEDIA_IMAGE, replacement.relation_id, replacement.image_ext,
+    );
+    // 写入图片到word压缩文件中
+    zip_writer.start_file(&image_path, SimpleFileOptions::default())?;
+    zip_writer.write_all(&replacement.image_data)?;
+    Ok(())
+}
+
+pub fn writer_file(
+    zip_writer: &mut ZipWriter<File>,
+    file: &ZipFile<File>,
+    contents: &[u8],
+) -> Result<(), DocxError> {
+    // 写入新文件
+    let option = SimpleFileOptions::default()
+        .compression_method(file.compression())
+        .unix_permissions(file.unix_mode().unwrap_or(0o644));
+    // 写入内容
+    zip_writer.start_file(file.name(), option)?;
+    zip_writer.write_all(contents)?;
+
+    Ok(())
 }

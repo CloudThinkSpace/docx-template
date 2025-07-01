@@ -2,9 +2,12 @@ pub mod docx;
 pub mod error;
 pub mod image;
 pub mod request;
+pub mod merge;
+
 #[cfg(test)]
 mod tests {
     use crate::docx::DocxTemplate;
+    use crate::merge::{merge_docx, DocxConcat};
 
     #[tokio::test] // 使用 tokio 运行时
     async fn test_replacement() {
@@ -33,5 +36,22 @@ mod tests {
             .expect("");
 
         println!("文档生成成功!");
+    }
+    
+    #[test]
+    fn test_merge_docx() {
+        
+        let inputs = vec![
+            "./data/FXYB020.docx".to_string(),
+            "./data/FXYB021.docx".to_string(),
+        ];
+        let output = "merge.docx".to_string();
+        
+        let _ = merge_docx(
+            &inputs,
+            output,
+            DocxConcat::PAGE
+        );
+        
     }
 }
