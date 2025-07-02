@@ -39,7 +39,7 @@ impl DocxTemplate {
             image_replacements: HashMap::new(),
             images_map: HashMap::new(),
             client: Client::builder()
-                .timeout(Duration::from_secs(10)) // 设置超时
+                .timeout(Duration::from_secs(100)) // 设置超时
                 .build()
                 .unwrap(),
         }
